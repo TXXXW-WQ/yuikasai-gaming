@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RPG テトリスクエスト</title>
+  <style>
+    :root {
+      --bg-dark: #0d0f18;
+      --panel-bg: rgba(20, 24, 40, 0.95);
+      --border-color: #ffd700;
+      --text-gold: #ffe600;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 50% 20%, #201a35 0%, transparent 60%),
+        radial-gradient(circle at 10% 80%, #152238 0%, transparent 50%);
+      color: #ffffff;
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      overflow: hidden;
+      height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* ネーム入力モーダル */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-box {
+      background: var(--panel-bg);
+      border: 4px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 380px;
+      text-align: center;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+    }
+
+    .modal-title {
+      color: var(--text-gold);
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    .modal-desc {
+      font-size: 13px;
+      color: #cccccc;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .input-group {
+      margin-bottom: 16px;
+    }
+
+    .name-input {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      border: 2px solid #555;
+      border-radius: 6px;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      outline: none;
+    }
+
+    .name-input:focus {
+      border-color: var(--border-color);
+    }
+
+    .error-msg {
+      color: #ff4d4d;
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+
+    .start-btn {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      background: linear-gradient(180deg, #ffcc00, #ff8800);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #995200;
+    }
+
+    .start-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #995200;
+    }
+
+    /* メインレイアウト */
+    .game-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 420px;
+      height: 100dvh;
+      padding: 8px;
+      gap: 6px;
+    }
+
+    /* ヘッダー・RPG情報 */
+    .rpg-header {
+      background: var(--panel-bg);
+      border: 3px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .monster-avatar {
+      width: 60px;
+      height: 60px;
+      background: #000;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .monster-canvas {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+
+    .monster-info {
+      flex-grow: 1;
+    }
+
+    .monster-name {
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--text-gold);
+      margin-bottom: 4px;
+    }
+
+    .hp-bar-bg {
+      width: 100%;
+      height: 14px;
+      background: #333;
+      border: 1px solid #666;
+      border-radius: 7px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hp-bar-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #ff3333, #ff6666);
+      transition: width 0.2s ease-out;
+    }
+
+    .hp-text {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      text-shadow: 1px 1px 1px #000;
+    }
+
+    /* メインゲームボード領域 */
+    .main-board-area {
+      flex: 1;
+      display: flex;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .canvas-wrapper {
+      flex: 1;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      border: 3px solid var(--border-color);
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #gameCanvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+
+    /* サイド情報パネル */
+    .side-panel {
+      width: 125px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .panel-box {
+      background: var(--panel-bg);
+      border: 2px solid #444d66;
+      border-radius: 6px;
+      padding: 6px;
+      text-align: center;
+    }
+
+    .panel-box.gold-border {
+      border-color: var(--border-color);
+    }
+
+    .panel-label {
+      font-size: 10px;
+      color: #aaa;
+      margin-bottom: 2px;
+    }
+
+    .panel-val {
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .next-canvas {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto;
+      image-rendering: pixelated;
+    }
+
+    /* ランキング表示 */
+    .ranking-list {
+      font-size: 11px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .ranking-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 4px;
+      border-radius: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .ranking-item:nth-child(1) { color: #ffd700; font-weight: bold; }
+    .ranking-item:nth-child(2) { color: #e0e0e0; }
+    .ranking-item:nth-child(3) { color: #cd7f32; }
+
+    .rank-name {
+      max-width: 55px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rank-score {
+      font-weight: bold;
+    }
+
+    /* 操作ボタンエリア */
+    .controls-area {
+      height: 120px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    .ctrl-btn {
+      background: linear-gradient(180deg, #2b3550, #182035);
+      border: 2px solid #5d6d97;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 3px 0 #0f1422;
+    }
+
+    .ctrl-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 #0f1422;
+      background: #3b496e;
+    }
+
+    .btn-hard {
+      grid-column: span 3;
+      background: linear-gradient(180deg, #8b0000, #4a0000);
+      border-color: #ff4444;
+      font-size: 14px;
+      box-shadow: 0 3px 0 #2a0000;
+    }
+
+    .btn-hard:active {
+      box-shadow: 0 1px 0 #2a0000;
+      background: #a00000;
+    }
+
+    @keyframes monsterHit {
+      0% { filter: brightness(1) sepia(0); transform: translate(0, 0); }
+      20% { filter: brightness(2) sepia(1) hue-rotate(-50deg); transform: translate(-4px, 4px); }
+      40% { filter: brightness(2) sepia(1) hue-rotate(-50deg); transform: translate(4px, -4px); }
+      60% { filter: brightness(2) sepia(1) hue-rotate(-50deg); transform: translate(-4px, -4px); }
+      80% { filter: brightness(2) sepia(1) hue-rotate(-50deg); transform: translate(4px, 4px); }
+      100% { filter: brightness(1) sepia(0); transform: translate(0, 0); }
+    }
+
+    .hit-anim {
+      animation: monsterHit 0.3s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ユーザーネーム入力モーダル -->
+  <div class="modal-overlay" id="nameModal">
+    <div class="modal-box">
+      <div class="modal-title">⚔️ 勇者の名前登録 ⚔️</div>
+      <div class="modal-desc">
+        日本語のみ（ひらがな・カタカナ・漢字）<br>
+        8文字以内で入力してください。
+      </div>
+      <div class="input-group">
+        <input type="text" id="usernameInput" class="name-input" maxlength="8" placeholder="例：ゆうしゃ" autocomplete="off">
+        <div class="error-msg" id="errorMsg"></div>
+      </div>
+      <button class="start-btn" id="startBtn">冒険をはじめる</button>
+    </div>
+  </div>
+
+  <!-- ゲームメイン画面 -->
+  <div class="game-container">
+    
+    <!-- モンスターHPヘッダー -->
+    <div class="rpg-header">
+      <div class="monster-avatar">
+        <canvas id="monsterCanvas" class="monster-canvas" width="60" height="60"></canvas>
+      </div>
+      <div class="monster-info">
+        <div class="monster-name" id="monsterName">魔導スライム</div>
+        <div class="hp-bar-bg">
+          <div class="hp-bar-fill" id="hpBarFill"></div>
+          <div class="hp-text" id="hpText">HP: 100 / 100</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ゲーム盤面 ＆ 情報サイドバー -->
+    <div class="main-board-area">
+      <div class="canvas-wrapper">
+        <canvas id="gameCanvas" width="240" height="480"></canvas>
+      </div>
+
+      <div class="side-panel">
+        <div class="panel-box gold-border">
+          <div class="panel-label">PLAYER</div>
+          <div class="panel-val" id="dispPlayerName" style="font-size:12px; color:#ffe600;">---</div>
+        </div>
+
+        <div class="panel-box">
+          <div class="panel-label">NEXT</div>
+          <canvas id="nextCanvas" class="next-canvas" width="60" height="60"></canvas>
+        </div>
+
+        <div class="panel-box">
+          <div class="panel-label">SCORE</div>
+          <div class="panel-val" id="scoreVal">0</div>
+        </div>
+
+        <div class="panel-box">
+          <div class="panel-label">KILLS</div>
+          <div class="panel-val" id="killsVal">0</div>
+        </div>
+
+        <div class="panel-box" style="flex:1; overflow-y:auto;">
+          <div class="panel-label" style="color:#ffe600; margin-bottom:4px;">🏆 RANKING</div>
+          <div class="ranking-list" id="rankingList">
+            <!-- ランキングが入る -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作ボタン -->
+    <div class="controls-area">
+      <button class="ctrl-btn" id="btnLeft">◀</button>
+      <button class="ctrl-btn" id="btnRotate">🔄</button>
+      <button class="ctrl-btn" id="btnRight">▶</button>
+      <button class="ctrl-btn" id="btnDown">▼</button>
+      <button class="ctrl-btn btn-hard" id="btnHard">⚡ ハードドロップ ⚡</button>
+    </div>
+
+  </div>
+
+  <script>
+    /* --- 1. 管理者設定＆ブロック定義 --- */
+    const BLOCK_SIZE = 24;
+    const COLS = 10;
+    const ROWS = 20;
+
+    const TETROMINOS = {
+      I: { shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: '#00f0ff', name: 'I' },
+      J: { shape: [[1,0,0],[1,1,1],[0,0,0]], color: '#2b55ff', name: 'J' },
+      L: { shape: [[0,0,1],[1,1,1],[0,0,0]], color: '#ff8c00', name: 'L' },
+      O: { shape: [[1,1],[1,1]], color: '#ffee00', name: 'O' },
+      S: { shape: [[0,1,1],[1,1,0],[0,0,0]], color: '#00ff44', name: 'S' },
+      T: { shape: [[0,1,0],[1,1,1],[0,0,0]], color: '#a000ff', name: 'T' },
+      Z: { shape: [[1,1,0],[0,1,1],[0,0,0]], color: '#ff0055', name: 'Z' }
+    };
+
+    const FACE_PATTERNS = {
+      I: [[0,1,1,0],[1,1,1,1],[1,0,0,1],[1,1,1,1]],
+      J: [[0,1,1,0],[1,1,1,1],[0,1,1,0],[1,0,0,1]],
+      L: [[1,1,1,1],[1,0,0,1],[1,1,1,1],[0,1,1,0]],
+      O: [[1,1,1,1],[0,1,1,0],[1,0,0,1],[0,1,1,0]],
+      S: [[1,0,0,1],[1,1,1,1],[1,0,0,1],[0,1,1,0]],
+      T: [[1,1,1,1],[1,0,0,1],[1,1,1,1],[1,1,1,1]],
+      Z: [[1,1,1,1],[0,0,0,0],[1,0,0,1],[1,1,1,1]]
+    };
+
+    /* --- 2. 強化版NGワードフィルター --- */
+    const NG_WORDS = [
+      '金玉', 'きんたま', 'キンタマ', 'はらませ', 'はらがませ', 'にんしん', 'せっくす', 
+      'ちんこ', 'まんこ', 'ちんぽ', 'チンポ', 'おなら', 'ちくび', 'パイズリ', 'れいぷ', 
+      'やらせろ', 'ふぇら', 'いんらん', 'へんたい', 'ぼっき', 'ほっき', 'フェラ', 
+      'ペニス', 'クリトリス', 'オナニー', 'セックス', '精液', '射精', '童貞', '処女', 
+      '巨乳', '孕ませ', '妊娠', '性交', '性器', '膣内', '中出し', 'レイプ', '変態', 
+      '痴漢', '買春', '売春', '包茎', '精子', 'アナル', 'あなる',
+      'しね', 'ころす', 'きちがい', 'ばか', 'あほ', 'ごみ', '死ね', '殺す'
+    ];
+
+    function toHiragana(str) {
+      return str.replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+    }
+
+    function normalizeKana(str) {
+      return str.normalize('NFD').replace(/[\u3099\u309a]/g, '');
+    }
+
+    function validateUsername(name) {
+      if (!name || name.trim() === "") return "名前を入力してください。";
+      if (name.length > 8) return "8文字以内で入力してください。";
+
+      const japaneseRegex = /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+$/;
+      if (!japaneseRegex.test(name)) {
+        return "日本語（ひらがな・カタカナ・漢字）のみ使用できます。";
+      }
+
+      const hiraName = toHiragana(name);
+      const normalizedName = normalizeKana(hiraName);
+
+      for (let word of NG_WORDS) {
+        const hiraWord = toHiragana(word);
+        const normWord = normalizeKana(hiraWord);
+
+        if (
+          name.includes(word) || 
+          hiraName.includes(hiraWord) || 
+          normalizedName.includes(normWord)
+        ) {
+          return "使用できない言葉が含まれています。";
+        }
+      }
+
+      return null;
+    }
+
+    /* --- 3. 音効（Web Audio API） --- */
+    let audioCtx = null;
+    function initAudio() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+      } catch(e) {}
+    }
+
+    function playSound(type) {
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === 'move') {
+          osc.frequency.setValueAtTime(300, now);
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'clear') {
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.08);
+          osc.frequency.setValueAtTime(783.99, now + 0.16);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'hit') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(150, now);
+          osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.start(now); osc.stop(now + 0.2);
+        }
+      } catch(e) {}
+    }
+
+    /* --- 4. モンスター関連 --- */
+    const MONSTERS = [
+      { name: "魔導スライム", hp: 100, color: "#00d2ff" },
+      { name: "オーラベア", hp: 200, color: "#ff4400" },
+      { name: "闇の魔道士", hp: 350, color: "#9a00ff" },
+      { name: "ドラゴンロード", hp: 500, color: "#ff0033" }
+    ];
+
+    let currentMonsterIdx = 0;
+    let monsterHp = 100;
+    let monsterMaxHp = 100;
+    let kills = 0;
+
+    function drawMonster() {
+      const cvs = document.getElementById('monsterCanvas');
+      const ctx = cvs.getContext('2d');
+      ctx.clearRect(0, 0, 60, 60);
+
+      const m = MONSTERS[currentMonsterIdx % MONSTERS.length];
+
+      ctx.fillStyle = m.color;
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(30, 30, 24 + Math.sin(Date.now() / 200) * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+
+      ctx.fillStyle = m.color;
+      if (currentMonsterIdx % 4 === 0) {
+        ctx.fillRect(18, 24, 24, 24);
+        ctx.fillRect(21, 18, 18, 6);
+        ctx.fillRect(15, 30, 30, 12);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(21, 27, 6, 6); ctx.fillRect(33, 27, 6, 6);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(24, 29, 3, 3); ctx.fillRect(36, 29, 3, 3);
+      } else {
+        ctx.fillRect(15, 15, 30, 30);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(21, 21, 6, 6); ctx.fillRect(33, 21, 6, 6);
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(24, 23, 3, 3); ctx.fillRect(36, 23, 3, 3);
+      }
+    }
+
+    function damageMonster(dmg) {
+      monsterHp -= dmg;
+      const avatar = document.querySelector('.monster-avatar');
+      avatar.classList.remove('hit-anim');
+      void avatar.offsetWidth;
+      avatar.classList.add('hit-anim');
+      playSound('hit');
+
+      if (monsterHp <= 0) {
+        kills++;
+        document.getElementById('killsVal').innerText = kills;
+        currentMonsterIdx++;
+        const nextM = MONSTERS[currentMonsterIdx % MONSTERS.length];
+        monsterMaxHp = nextM.hp + Math.floor(currentMonsterIdx / MONSTERS.length) * 200;
+        monsterHp = monsterMaxHp;
+        document.getElementById('monsterName').innerText = nextM.name;
+      }
+      updateHpBar();
+    }
+
+    function updateHpBar() {
+      const pct = Math.max(0, (monsterHp / monsterMaxHp) * 100);
+      document.getElementById('hpBarFill').style.width = pct + '%';
+      document.getElementById('hpText').innerText = `HP: ${Math.max(0, monsterHp)} / ${monsterMaxHp}`;
+    }
+
+    /* --- 5. テトリスゲームコア --- */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const nextCvs = document.getElementById('nextCanvas');
+    const nextCtx = nextCvs.getContext('2d');
+
+    let grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+    let currentPiece = null;
+    let nextPiece = null;
+    let score = 0;
+    let playerName = "";
+    let gameOver = false;
+    let gameStarted = false;
+    let dropCounter = 0;
+    let dropInterval = 800;
+    let lastTime = 0;
+    let lastHardDropTime = 0; // ハードドロップの連続防止用
+
+    function createPiece(type) {
+      const t = TETROMINOS[type];
+      return {
+        shape: t.shape,
+        color: t.color,
+        name: t.name,
+        x: Math.floor(COLS / 2) - Math.ceil(t.shape[0].length / 2),
+        y: 0
+      };
+    }
+
+    function drawBlock(context, x, y, color, name, isGhost = false) {
+      const px = x * BLOCK_SIZE;
+      const py = y * BLOCK_SIZE;
+
+      if (isGhost) {
+        context.save();
+        context.globalAlpha = 0.35;
+        context.fillStyle = color;
+        context.fillRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+        context.globalAlpha = 0.8;
+        context.strokeStyle = color;
+        context.lineWidth = 1.5;
+        context.strokeRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+        context.restore();
+        return;
+      }
+
+      context.fillStyle = color;
+      context.fillRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+
+      context.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      context.fillRect(px, py, BLOCK_SIZE, 3);
+      context.fillRect(px, py, 3, BLOCK_SIZE);
+
+      if (name && FACE_PATTERNS[name]) {
+        const pattern = FACE_PATTERNS[name];
+        const pSize = 3;
+        const offsetX = (BLOCK_SIZE - (4 * pSize)) / 2;
+        const offsetY = (BLOCK_SIZE - (4 * pSize)) / 2;
+
+        context.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (pattern[r][c] === 1) {
+              context.fillRect(px + offsetX + c * pSize, py + offsetY + r * pSize, pSize, pSize);
+            }
+          }
+        }
+      }
+    }
+
+    function collide(board, piece, offset = {x:0, y:0}) {
+      for (let r = 0; r < piece.shape.length; r++) {
+        for (let c = 0; c < piece.shape[r].length; c++) {
+          if (piece.shape[r][c] !== 0) {
+            const newX = piece.x + c + offset.x;
+            const newY = piece.y + r + offset.y;
+            if (newX < 0 || newX >= COLS || newY >= ROWS) return true;
+            if (newY >= 0 && board[newY][newX] !== 0) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function merge(board, piece) {
+      piece.shape.forEach((row, r) => {
+        row.forEach((val, c) => {
+          if (val !== 0) {
+            board[piece.y + r][piece.x + c] = { color: piece.color, name: piece.name };
+          }
+        });
+      });
+    }
+
+    function getGhostPosition() {
+      if (!currentPiece) return 0;
+      let ghostY = currentPiece.y;
+      while (!collide(grid, currentPiece, { x: 0, y: ghostY - currentPiece.y + 1 })) {
+        ghostY++;
+      }
+      return ghostY;
+    }
+
+    function draw() {
+      ctx.fillStyle = '#0a0d14';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = '#1a2233';
+      ctx.lineWidth = 0.5;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          ctx.strokeRect(c * BLOCK_SIZE, r * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        }
+      }
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (grid[r][c] !== 0) {
+            drawBlock(ctx, c, r, grid[r][c].color, grid[r][c].name);
+          }
+        }
+      }
+
+      if (currentPiece) {
+        const ghostY = getGhostPosition();
+        currentPiece.shape.forEach((row, r) => {
+          row.forEach((val, c) => {
+            if (val !== 0) {
+              drawBlock(ctx, currentPiece.x + c, ghostY + r, currentPiece.color, null, true);
+            }
+          });
+        });
+
+        currentPiece.shape.forEach((row, r) => {
+          row.forEach((val, c) => {
+            if (val !== 0) {
+              drawBlock(ctx, currentPiece.x + c, currentPiece.y + r, currentPiece.color, currentPiece.name);
+            }
+          });
+        });
+      }
+
+      nextCtx.fillStyle = '#141828';
+      nextCtx.fillRect(0, 0, nextCvs.width, nextCvs.height);
+      if (nextPiece) {
+        const offX = (60 - nextPiece.shape[0].length * 12) / 2;
+        const offY = (60 - nextPiece.shape.length * 12) / 2;
+        nextPiece.shape.forEach((row, r) => {
+          row.forEach((val, c) => {
+            if (val !== 0) {
+              nextCtx.fillStyle = nextPiece.color;
+              nextCtx.fillRect(offX + c * 12, offY + r * 12, 11, 11);
+            }
+          });
+        });
+      }
+    }
+
+    function arenaSweep() {
+      let lines = 0;
+      outer: for (let r = ROWS - 1; r >= 0; --r) {
+        for (let c = 0; c < COLS; ++c) {
+          if (grid[r][c] === 0) continue outer;
+        }
+        const row = grid.splice(r, 1)[0].fill(0);
+        grid.unshift(row);
+        ++r;
+        lines++;
+      }
+      if (lines > 0) {
+        const pts = [0, 100, 300, 500, 800][lines];
+        score += pts;
+        document.getElementById('scoreVal').innerText = score;
+        damageMonster(pts);
+        playSound('clear');
+      }
+    }
+
+    function playerDrop() {
+      if (!currentPiece) return;
+      currentPiece.y++;
+      if (collide(grid, currentPiece)) {
+        currentPiece.y--;
+        merge(grid, currentPiece);
+        arenaSweep();
+        resetPiece();
+      }
+      dropCounter = 0;
+    }
+
+    function hardDrop() {
+      if (!currentPiece || gameOver) return;
+      const now = Date.now();
+      if (now - lastHardDropTime < 150) return; // 連続誤爆を防止するクールダウン
+      lastHardDropTime = now;
+
+      currentPiece.y = getGhostPosition();
+      merge(grid, currentPiece);
+      arenaSweep();
+      resetPiece();
+      playSound('move');
+    }
+
+    function resetPiece() {
+      const keys = Object.keys(TETROMINOS);
+      if (!nextPiece) {
+        nextPiece = createPiece(keys[Math.floor(Math.random() * keys.length)]);
+      }
+      currentPiece = nextPiece;
+      nextPiece = createPiece(keys[Math.floor(Math.random() * keys.length)]);
+
+      if (collide(grid, currentPiece)) {
+        gameOver = true;
+        saveScore(playerName, score);
+        alert(`ゲームオーバー！\nスコア: ${score}`);
+        grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        score = 0;
+        kills = 0;
+        document.getElementById('scoreVal').innerText = 0;
+        document.getElementById('killsVal').innerText = 0;
+        gameOver = false;
+        resetPiece();
+      }
+    }
+
+    function move(dir) {
+      if (!currentPiece) return;
+      currentPiece.x += dir;
+      if (collide(grid, currentPiece)) {
+        currentPiece.x -= dir;
+      } else {
+        playSound('move');
+      }
+    }
+
+    function rotate() {
+      if (!currentPiece) return;
+      const pos = currentPiece.x;
+      let offset = 1;
+      const matrix = currentPiece.shape;
+      for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < y; ++x) {
+          [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+        }
+      }
+      matrix.forEach(row => row.reverse());
+
+      while (collide(grid, currentPiece)) {
+        currentPiece.x += offset;
+        offset = -(offset + (offset > 0 ? 1 : -1));
+        if (offset > matrix[0].length) {
+          matrix.forEach(row => row.reverse());
+          for (let y = 0; y < matrix.length; ++y) {
+            for (let x = 0; x < y; ++x) {
+              [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+            }
+          }
+          currentPiece.x = pos;
+          return;
+        }
+      }
+      playSound('move');
+    }
+
+    function update(time = 0) {
+      const deltaTime = time - lastTime;
+      lastTime = time;
+      dropCounter += deltaTime;
+
+      if (gameStarted && dropCounter > dropInterval && !gameOver) {
+        playerDrop();
+      }
+
+      draw();
+      drawMonster();
+      requestAnimationFrame(update);
+    }
+
+    /* --- 6. リアルタイムランキング --- */
+    function getRankings() {
+      try {
+        return JSON.parse(localStorage.getItem('tetris_rpg_rankings') || '[]');
+      } catch(e) {
+        return [];
+      }
+    }
+
+    function saveScore(name, sc) {
+      if (sc <= 0) return;
+      let ranks = getRankings();
+      ranks.push({ name, score: sc });
+      ranks.sort((a, b) => b.score - a.score);
+      ranks = ranks.slice(0, 5);
+      try {
+        localStorage.setItem('tetris_rpg_rankings', JSON.stringify(ranks));
+      } catch(e) {}
+      renderRankings();
+    }
+
+    function renderRankings() {
+      const ranks = getRankings();
+      const listEl = document.getElementById('rankingList');
+      if (ranks.length === 0) {
+        listEl.innerHTML = '<div style="font-size:10px; color:#aaa; text-align:center;">記録なし</div>';
+        return;
+      }
+      listEl.innerHTML = ranks.map((r, i) => `
+        <div class="ranking-item">
+          <span class="rank-name">${i+1}.${r.name}</span>
+          <span class="rank-score">${r.score}</span>
+        </div>
+      `).join('');
+    }
+
+    /* --- 7. イベント連携 --- */
+    document.getElementById('startBtn').addEventListener('click', () => {
+      initAudio();
+      const input = document.getElementById('usernameInput');
+      const name = input.value.trim();
+      const err = validateUsername(name);
+
+      if (err) {
+        document.getElementById('errorMsg').innerText = err;
+        return;
+      }
+
+      playerName = name;
+      document.getElementById('dispPlayerName').innerText = playerName;
+      document.getElementById('nameModal').style.display = 'none';
+
+      gameStarted = true;
+      resetPiece();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (!gameStarted || gameOver || !playerName) return;
+      if (e.key === 'ArrowLeft') move(-1);
+      if (e.key === 'ArrowRight') move(1);
+      if (e.key === 'ArrowDown') playerDrop();
+      if (e.key === 'ArrowUp') rotate();
+      if (e.key === ' ' && !e.repeat) { // 押しっぱなしによる連続ドロップを防止
+        e.preventDefault();
+        hardDrop();
+      }
+    });
+
+    document.getElementById('btnLeft').addEventListener('click', () => move(-1));
+    document.getElementById('btnRight').addEventListener('click', () => move(1));
+    document.getElementById('btnRotate').addEventListener('click', () => rotate());
+    document.getElementById('btnDown').addEventListener('click', () => playerDrop());
+    document.getElementById('btnHard').addEventListener('click', () => hardDrop());
+
+    renderRankings();
+    updateHpBar();
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
